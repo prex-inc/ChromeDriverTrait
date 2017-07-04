@@ -8,14 +8,14 @@ use Facebook\WebDriver\Remote\RemoteWebDriver;
 use Facebook\WebDriver\Remote\DesiredCapabilities;
 
 /**
- * Class IeieieTestTrait
+ * trait ChromeDriverTrait
  * ブラウザの開閉処理、データの保存処理、レポートの表示などを担う
  */
 trait ChromeDriverTrait
 {
 
     /** @var RemoteWebDriver $driver 動的に保持するRemoteWebDriver  */
-    //protected $driver;
+    protected $driver;
 
     /** @var string $scrollEndFlagId スクロール終了を告げるオブジェクトのID */
     static $scrollEndFlagId = 'scroll_end';
@@ -38,6 +38,12 @@ trait ChromeDriverTrait
     /** @var string $reportsDir reportの保存先 */
     static $reportsDir = '';
 
+    /** @var string $scriptBeforeScrollForSaveScreenShot 最初のスクロール前に実行したいスクリプト */
+    static $scriptBeforeScrollForSaveScreenShot = '';
+
+    /** @var Object $testResultObject テスト結果のオブジェクト  */
+    static $testResultObject;
+
     /**
      * テスト開始時に一回だけ実行される初期化処理
      */
@@ -49,7 +55,7 @@ trait ChromeDriverTrait
         //テスト実行時間を保持
         static::$testTime = date('ymdHis');
 
-        //ブラウザの設定を決める（単一ブラウザ構想でいる限り、spとpcはウィンドウを開き直す）
+        //ブラウザの設定
         $capabilities =  DesiredCapabilities::chrome();
         $capabilities->setCapability("chromeOptions", static::$chromeOptions);
 
@@ -67,15 +73,14 @@ trait ChromeDriverTrait
      */
     static function getTestResultsArray(){
 
-        $results = [];
-
+        $temp = [];
         //今回、生成したスクリーンショットのファイルリストを取得する
         $glob_files = glob(static::$reportsDir . static::$testTime .'*.jpg');
         foreach($glob_files as $f){
             $segment = explode('-', basename($f));
             $testName = __CLASS__. '::'.$segment[1];
 
-            $results[$testName]['screen_shots'][] = $f;
+            $temp[$testName]['screen_shots'][] = $f;
         }
 
         //今回、生成したHTMLのファイルリストを取得する
@@ -85,12 +90,21 @@ trait ChromeDriverTrait
             $segment = explode('-', basename($f));
             $testName = __CLASS__. '::'.$segment[1];
 
-            $results[$testName]['html'][] = $f;
+            $temp[$testName]['html'][] = $f;
         }
+
+        //$allTests順に並び替える
+        $results = [];
+        foreach(static::$allTests as $testName){
+            $results[$testName] = $temp[$testName];
+        }
+
+
+        $passed = array_keys(static::$testResultObject->passed());
 
         //テスト結果を配列にマージ
         foreach($results as $testName=>$dummy){
-            $results[$testName]['flag'] = in_array($testName, static::$passed) ? 'true' : 'false';
+            $results[$testName]['flag'] = in_array($testName, $passed) ? 'true' : 'false';
         }
 
         return $results;
@@ -116,7 +130,7 @@ trait ChromeDriverTrait
     }
 
     /**
-     * jqueryを使わないことにより汎用的に実施可能
+     * 画面のスクロールscript
      */
     function getScrollJavaScript()
     {
@@ -144,7 +158,7 @@ trait ChromeDriverTrait
     /**
      * 表示画像を保存する
      */
-    function saveScreenShoot($suffix = ''){
+    function saveScreenShoot(){
 
         $i = 0;
         $paths = [];
@@ -153,13 +167,13 @@ trait ChromeDriverTrait
 
         do{
             //スクリーンショットを保存する
-            $path = static::$reportsDir.sprintf('%s-%s-%s%s.jpg',
+            $path = static::$reportsDir.sprintf('%s-%s-%02d.jpg',
                     static::$testTime,
                     $this->getName(),
-                    $i++,
-                    $suffix ? ('-'.$suffix) : '');
+                    $i++);
             $this->driver->takeScreenshot($path);
 
+            //ヘッダーの除去など、スクロール後に処理したいscriptを定義できる
             $this->driver->executeScript(static::$scriptBeforeScrollForSaveScreenShot);
             $this->driver->executeScript($this->getScrollJavaScript());
 
@@ -189,6 +203,28 @@ trait ChromeDriverTrait
     }
 
     /**
+     * 遅延を行うクロージャを返す。下記のように使う
+     *
+     * 100マイクロ秒周期で100秒待機、待機時間は1500マイクロ秒（1.5秒）
+     * $this->driver->wait(100, 100)->until(self::sleep(1500));
+     *
+     * @param $micro_second 遅延したいマイクロ秒
+     * @return Closure 指定の遅延時間でtrueを返すクロージャ
+     */
+    static function sleep($micro_second){
+
+        $start = microtime(true);
+
+        $micro_second = $micro_second / 1000;
+
+        return function() use ($start, $micro_second){
+
+            return microtime(true) > $start + $micro_second;
+
+        };
+    }
+
+    /**
      * タブを開く
      */
     function openNewTab(){
@@ -206,10 +242,10 @@ trait ChromeDriverTrait
         $this->saveHtml();
         $this->openNewTab();
 
-        //テスト実行結果を保持する
+        //テストリストを保持する
         static::$allTests[] = __CLASS__. '::'.$this->getName();
-        //最後のpassed配列で毎回上書きする
-        static::$passed = array_keys($this->getTestResultObject()->passed());
+        //テスト結果を保持する
+        static::$testResultObject = $this->getTestResultObject();
     }
 
 
@@ -231,14 +267,14 @@ trait ChromeDriverTrait
 
         $debug_code = __DIR__ . '/../etc/debug.php';
         $debug_log = __DIR__ . '/../etc/debug.log';
-        $pre_modified = Helper::exec('stat -f %m '.$debug_code);
+        $pre_modified = self::exec('stat -f %m '.$debug_code);
 
         //インターバール0.5秒で１時間待機する
         $this->driver->wait(3600, 500)->until(function() use (&$pre_modified, $debug_code, $debug_log){
 
             //debug.phpが更新されるたびに再実行される。filemtime()は最新の値を返さない
 
-            $modified = Helper::exec('stat -f %m '.$debug_code);
+            $modified = self::exec('stat -f %m '.$debug_code);
             if($pre_modified != $modified){
 
                 //表示結果をdebug.logに保存
@@ -247,7 +283,7 @@ trait ChromeDriverTrait
                 echo 'Debug: ' . date('Y-m-d H:i:s') . "\n";
 
                 //文法エラーがないか事前にチェック
-                $syntax_error = Helper::exec('php -l '.$debug_code);
+                $syntax_error = self::exec('php -l '.$debug_code);
                 if(preg_match('/^No syntax/', $syntax_error)){
                     try{
                         include($debug_code);
@@ -267,19 +303,5 @@ trait ChromeDriverTrait
             return false;
         }
         );
-    }
-
-
-    /**
-     * 指定のオブジェクトが真ん中にくるところまでスクロールする
-     * @param $selector
-     */
-    function scrollToCenter($selector){
-
-        //TODO jqueryを使わず実装すべき
-        $script =<<<EOD
-$("html,body").scrollTop($("{$selector}").offset().top - $(window).height() / 2);
-EOD;
-        $this->driver->executeScript($script);
     }
 }
