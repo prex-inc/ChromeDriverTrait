@@ -7,7 +7,7 @@ RemoteWebDriverの基本的な使い方は、を参照ください。
 http://qiita.com/zaburo/items/f11357170953a3c34b8f
 https://facebook.github.io/php-webdriver/1.2.0/Facebook/WebDriver.html
 
-#主な機能
+# 主な機能
 
 - 各テストをChromeのタブとして実行します
 - 各テストの結果レポートをhtmlで書き出します
@@ -16,7 +16,7 @@ https://facebook.github.io/php-webdriver/1.2.0/Facebook/WebDriver.html
 - テストを◯マイクロ秒止める機能があります
 
 
-#実行サンプル
+# 実行サンプル
 
 ```
 phpunit --colors path/to/tests/SampleTest.php
@@ -26,7 +26,7 @@ phpunit --colors path/to/tests/SampleTest.php
 
 
 
-#ディレクトリ構成
+# ディレクトリ構成
 
 ```
 etc/  
@@ -44,9 +44,9 @@ composer.json
 README.md  
 ```
 
-#特殊機能の使い方
+# 特殊機能の使い方
 
-##ステップ実行機能
+## ステップ実行機能
 
 テストメソッド中に、
 
@@ -58,7 +58,7 @@ $this->debug();
 このとき、etc/debug.php（debug.sample.phpをコピーしてください）を編集して保存すると、その中身が実行されます。
 これにより、ブラウザテスト動作をステップ実行して実験することができます。
 
-##テストの時間待機機能
+## テストの時間待機機能
 
 時間指定の待機は推奨されませんが、やはり便利です。このように記述できます。
 
