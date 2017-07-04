@@ -4,7 +4,7 @@ Facebook\WebDriver\Remote\RemoteWebDriver
 によるブラウザテストをより便利にするクラスです。
 RemoteWebDriverの基本的な使い方は、を参照ください。
 
-http://qiita.com/zaburo/items/f11357170953a3c34b8f
+http://qiita.com/zaburo/items/f11357170953a3c34b8f  
 https://facebook.github.io/php-webdriver/1.2.0/Facebook/WebDriver.html
 
 # 主な機能
